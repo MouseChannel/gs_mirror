@@ -726,8 +726,11 @@ class GaussianModel:
     @torch.no_grad()
     def compute_mirror_plane(self, min_opacity, sansac_threshold=0.01):
         # filter mirror points
+
+        opacity = self.get_opacity.mean(-1).unsqueeze(-1)
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
-                    self.get_opacity > min_opacity).squeeze()
+            opacity> min_opacity).squeeze()
+                    # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
 
         # compute plane parameters
@@ -739,7 +742,7 @@ class GaussianModel:
         # normal = eig_vector[:, 0]
         # a, b, c = normal[0].item(), normal[1].item(), normal[2].item()
         # d = -torch.matmul(normal, center).item()
-
+        from utils import ransac
         self.mirror_equ, mirror_pts_ids = ransac.Plane(mirror_xyz.detach().cpu().numpy(), sansac_threshold)
 
         # mirror_transform

@@ -89,7 +89,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         surf_normal = render_pkg['surf_normal'] 
  
         plane_loss = torch.tensor([0.0]).cuda()
-        if iteration == 10000: 
+        if iteration == 10000:
             mirror_transform = gaussians.compute_mirror_plane(min_opacity=0.5, sansac_threshold=opt.sansac_threshold) 
 
         Ll1 = l1_loss(image, gt_image_wo_mirror)

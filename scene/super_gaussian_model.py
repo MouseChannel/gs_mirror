@@ -722,3 +722,63 @@ class GaussianModel:
         self.xyz_gradient_accum[update_filter] += torch.norm(viewspace_point_tensor.grad[update_filter], dim=-1,
                                                              keepdim=True)
         self.denom[update_filter] += 1
+
+    @torch.no_grad()
+    def compute_mirror_plane(self, min_opacity, sansac_threshold=0.01):
+        # filter mirror points
+        valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
+                    self.get_opacity > min_opacity).squeeze()
+        mirror_xyz = self._xyz[valid_points_mask]
+
+        # compute plane parameters
+        # points = mirror_xyz.detach()
+        # center = points.mean(0)
+        # covariance_matrix = points - center
+        # covariance_matrix = torch.matmul(covariance_matrix.transpose(0, 1), covariance_matrix)
+        # eig_value, eig_vector = torch.linalg.eigh(covariance_matrix)
+        # normal = eig_vector[:, 0]
+        # a, b, c = normal[0].item(), normal[1].item(), normal[2].item()
+        # d = -torch.matmul(normal, center).item()
+
+        self.mirror_equ, mirror_pts_ids = ransac.Plane(mirror_xyz.detach().cpu().numpy(), sansac_threshold)
+
+        # mirror_transform
+        a, b, c, d = self.mirror_equ[0], self.mirror_equ[1], self.mirror_equ[2], self.mirror_equ[3]
+        mirror_transform = np.array([
+            1 - 2 * a * a, -2 * a * b, -2 * a * c, -2 * a * d,
+            -2 * a * b, 1 - 2 * b * b, -2 * b * c, -2 * b * d,
+            -2 * a * c, -2 * b * c, 1 - 2 * c * c, -2 * c * d,
+            0, 0, 0, 1
+        ]).reshape(4, 4)
+        mirror_transform = torch.as_tensor(mirror_transform, dtype=torch.float, device="cuda")
+
+        #
+        # dist = ((
+        #     mirror_xyz[:, 0] * a + mirror_xyz[:, 1] * b + mirror_xyz[:, 2] * c + d
+        #     ) / np.sqrt(a ** 2 + b ** 2 + c ** 2)).abs().detach()
+        # outlier_mask =  dist > (dist.min() * 0.7 + dist.max() * 0.3)
+        # self._opacity[valid_points_mask][outlier_mask] = -100
+        # trimesh.points.PointCloud(mirror_xyz[outlier_mask.logical_not()].detach().cpu().numpy()).export("filter.ply")
+
+        return mirror_transform
+
+    def get_plane_error(self, save_mirror_path=None, min_opacity=0.5):
+        """enforcing the mirror points close to the plane"""
+        valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
+                    self.get_opacity > min_opacity).squeeze()
+        mirror_xyz = self._xyz[valid_points_mask]
+        import trimesh
+        if save_mirror_path is not None:
+            trimesh.points.PointCloud(mirror_xyz.detach().cpu().numpy()).export(save_mirror_path)
+
+        a, b, c, d = self.mirror_equ[0], self.mirror_equ[1], self.mirror_equ[2], self.mirror_equ[3]
+        dist = ((
+                        mirror_xyz[:, 0] * a + mirror_xyz[:, 1] * b + mirror_xyz[:, 2] * c + d
+                ) / np.sqrt(a ** 2 + b ** 2 + c ** 2)).abs()
+
+        # outlier_mask =  dist > (dist.min() * 0.7 + dist.max() * 0.3)
+        # self._opacity[valid_points_mask][outlier_mask.detach()] *= -100
+
+        return dist
+
+

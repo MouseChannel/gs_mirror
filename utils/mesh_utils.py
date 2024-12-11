@@ -89,6 +89,7 @@ class GaussianExtractor(object):
         self.depth_normals = []
         self.points = []
         self.viewpoint_stack = []
+        self.gts = []
 
     @torch.no_grad()
     def reconstruction(self, viewpoint_stack):
@@ -99,6 +100,7 @@ class GaussianExtractor(object):
         self.viewpoint_stack = viewpoint_stack
         for i, viewpoint_cam in tqdm(enumerate(self.viewpoint_stack), desc="reconstruct radiance fields"):
             # get mirror tramsform 
+            gt = viewpoint_cam.original_image
             render_pkg = self.render(viewpoint_cam, self.gaussians, render_mirror_mask=True) 
             rgb = render_pkg['render']
             alpha = render_pkg['rend_alpha']
@@ -117,11 +119,13 @@ class GaussianExtractor(object):
             self.normals.append(normal.cpu())
             self.depth_normals.append(depth_normal.cpu())
             self.points.append(point.cpu()) 
+            self.gts.append(gt.cpu())
         self.rgbmaps = torch.stack(self.rgbmaps, dim=0)
         self.depthmaps = torch.stack(self.depthmaps, dim=0)
         self.alphamaps = torch.stack(self.alphamaps, dim=0)
         self.depth_normals = torch.stack(self.depth_normals, dim=0)
         self.points = torch.stack(self.points, dim=0)
+        self.gts = torch.stack(self.gts,dim=0)
 
     @torch.no_grad()
     def extract_mesh_bounded(self, voxel_size=0.004, sdf_trunc=0.02, depth_trunc=3, mask_backgrond=True):
@@ -284,8 +288,11 @@ class GaussianExtractor(object):
         depth_path = os.path.join(path, "depth")
         normal_path = os.path.join(path, "normal")
         depth_normal_path = os.path.join(path, "depth_normal")
-         
-        for save_dir in [render_path, mask_path, depth_path, normal_path, depth_normal_path]:
+        gt_path = os.path.join(path, "gt")
+
+        
+
+        for save_dir in [render_path, mask_path, depth_path, normal_path, depth_normal_path,gt_path]:
             os.makedirs(save_dir, exist_ok=True)
         
         for idx, viewpoint_cam in tqdm(enumerate(self.viewpoint_stack), desc="export images"):
@@ -293,6 +300,8 @@ class GaussianExtractor(object):
             # render_gt = torch.cat([self.rgbmaps[idx].cpu(), gt.cpu()], 2).permute(1,2,0).numpy() 
             
             save_img_u8(self.rgbmaps[idx].cpu().permute(1,2,0).numpy(), os.path.join(render_path, '{0:05d}'.format(idx) + ".png")) 
+            save_img_u8(self.gts[idx].cpu().permute(1,2,0).numpy(), os.path.join(gt_path, '{0:05d}'.format(idx) + ".png")) 
+
             save_mask_u8(self.alphamaps[idx][0].cpu().numpy(), os.path.join(mask_path, '{0:05d}'.format(idx) + ".png"))
             save_img_f32(self.depthmaps[idx][0].cpu().numpy(), os.path.join(depth_path, 'depth_{0:05d}'.format(idx) + ".tiff"))
             save_img_u8(self.normals[idx].permute(1,2,0).cpu().numpy() * 0.5 + 0.5, os.path.join(normal_path, 'normal_{0:05d}'.format(idx) + ".png"))

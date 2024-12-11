@@ -767,8 +767,10 @@ class GaussianModel:
 
     def get_plane_error(self, save_mirror_path=None, min_opacity=0.5):
         """enforcing the mirror points close to the plane"""
+        opacity = self.get_opacity.mean(-1).unsqueeze(-1)
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
-                    self.get_opacity > min_opacity).squeeze()
+                opacity > min_opacity).squeeze()
+                    # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
         import trimesh
         if save_mirror_path is not None:

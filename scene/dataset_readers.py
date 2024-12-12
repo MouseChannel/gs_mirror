@@ -224,10 +224,10 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             if os.path.exists(mask_path):
                 bg = np.array([1,1,1]) if white_background else np.array([0, 0, 0])
                 mirror_mask = Image.open(mask_path).convert("L")
-                mirror_mask = np.array(mirror_mask)[..., None] / 255.0  
-                image = np.array(image) / 255.0 
-                image = image * (1 - mirror_mask) + mirror_mask * bg  
-                image = np.concatenate([image, 1 - mirror_mask], -1)  
+                mirror_mask = np.array(mirror_mask)[..., None] / 255.0
+                image = np.array(image) / 255.0
+                # image = image * (1 - mirror_mask) + mirror_mask * bg
+                image = np.concatenate([image, 1 - mirror_mask], -1)
                 image = Image.fromarray((image*255).astype(np.uint8))
             
             fovx = focal2fov(focal, image.size[0])
@@ -252,7 +252,7 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
     train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
     print("Reading Test Transforms")
     test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
-    
+
     if not eval:
         train_cam_infos.extend(test_cam_infos)
         test_cam_infos = []

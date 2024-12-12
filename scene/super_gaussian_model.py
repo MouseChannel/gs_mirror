@@ -197,8 +197,7 @@ class GaussianModel:
         self._features_rest = nn.Parameter(features[:, :, 1:].transpose(1, 2).contiguous().requires_grad_(True))
         self._quadrant = nn.Parameter(colors.requires_grad_(True))
 
-        # do not update mirror quadrant
-        self._mirror_quadrant = nn.Parameter(mirror_colors.requires_grad_(False))
+        self._mirror_quadrant = nn.Parameter(mirror_colors.requires_grad_(True))
 
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
@@ -264,8 +263,7 @@ class GaussianModel:
         self._features_rest = nn.Parameter(features[:, :, 1:].transpose(1, 2).contiguous().requires_grad_(True))
         self._quadrant = nn.Parameter(colors.requires_grad_(True))
         # mir
-        # do not update _mirror_quadrant
-        self._mirror_quadrant = nn.Parameter(mirror_colors.requires_grad_(False))
+        self._mirror_quadrant = nn.Parameter(mirror_colors.requires_grad_(True))
 
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
@@ -284,10 +282,10 @@ class GaussianModel:
             {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
             {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
             {'params': [self._quadrant], 'lr': training_args.feature_lr / 2.0, "name": "quadrant"},  # new
-            {'params': [self._mirror_quadrant], 'lr': 0, "name": "mirror_quadrant"},  # new
+            {'params': [self._mirror_quadrant], 'lr': training_args.feature_lr / 10.0, "name": "mirror_quadrant"},  # new
 
             {'params': [self._opacity], 'lr': training_args.opacity_lr / 1.0, "name": "opacity"},
-            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr, "name": "mirror_opacity"},
+            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr*2.0, "name": "mirror_opacity"},
 
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
@@ -444,7 +442,8 @@ class GaussianModel:
             torch.tensor(quadrants, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
         self._mirror_quadrant = nn.Parameter(
             torch.tensor(mirror_quadrants, dtype=torch.float, device="cuda").transpose(1,
-                                                                                       2).contiguous().requires_grad_(False))
+                                                                                       2).contiguous().requires_grad_(
+                True))
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
         self._mirror_opacity = nn.Parameter(
             torch.tensor(mirror_opacities, dtype=torch.float, device="cuda").requires_grad_(True))
@@ -730,8 +729,8 @@ class GaussianModel:
 
         opacity = self.get_opacity.mean(-1).unsqueeze(-1)
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
-                opacity > min_opacity).squeeze()
-        # self.get_opacity > min_opacity).squeeze()
+            opacity> min_opacity).squeeze()
+                    # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
 
         # compute plane parameters
@@ -771,7 +770,7 @@ class GaussianModel:
         opacity = self.get_opacity.mean(-1).unsqueeze(-1)
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
                 opacity > min_opacity).squeeze()
-        # self.get_opacity > min_opacity).squeeze()
+                    # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
         import trimesh
         if save_mirror_path is not None:
@@ -786,3 +785,5 @@ class GaussianModel:
         # self._opacity[valid_points_mask][outlier_mask.detach()] *= -100
 
         return dist
+
+

@@ -482,10 +482,12 @@ class GaussianModel:
     def get_plane_error(self, save_mirror_path=None, min_opacity=0.5):
         """enforcing the mirror points close to the plane"""
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (self.get_opacity > min_opacity).squeeze()
-        mirror_xyz = self._xyz[valid_points_mask] 
+        mirror_xyz = self._xyz[valid_points_mask]
+        mirror_opacity = self._mirror_opacity[valid_points_mask]
 
-        if save_mirror_path is not None: 
-            trimesh.points.PointCloud(mirror_xyz.detach().cpu().numpy()).export(save_mirror_path)
+        if save_mirror_path is not None:
+
+            trimesh.points.PointCloud(mirror_xyz.detach().cpu().numpy(),mirror_opacity.repeat(1,4).detach().cpu().numpy()).export(save_mirror_path)
 
         a, b, c, d = self.mirror_equ[0], self.mirror_equ[1], self.mirror_equ[2], self.mirror_equ[3]
         dist = ((

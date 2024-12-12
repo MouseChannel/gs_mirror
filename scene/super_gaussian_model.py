@@ -282,10 +282,10 @@ class GaussianModel:
             {'params': [self._features_dc], 'lr': training_args.feature_lr, "name": "f_dc"},
             {'params': [self._features_rest], 'lr': training_args.feature_lr / 20.0, "name": "f_rest"},
             {'params': [self._quadrant], 'lr': training_args.feature_lr / 2.0, "name": "quadrant"},  # new
-            {'params': [self._mirror_quadrant], 'lr': training_args.feature_lr / 10.0, "name": "mirror_quadrant"},  # new
+            {'params': [self._mirror_quadrant], 'lr': training_args.feature_lr / 2, "name": "mirror_quadrant"},  # new
 
             {'params': [self._opacity], 'lr': training_args.opacity_lr / 1.0, "name": "opacity"},
-            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr*2.0, "name": "mirror_opacity"},
+            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr , "name": "mirror_opacity"},
 
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}

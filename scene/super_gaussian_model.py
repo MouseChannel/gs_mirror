@@ -774,7 +774,7 @@ class GaussianModel:
         mirror_xyz = self._xyz[valid_points_mask]
         import trimesh
 
-        mirror_opacity = self._mirror_opacity[valid_points_mask]
+        mirror_opacity = self.get_mirror_opacity[valid_points_mask]
 
         if save_mirror_path is not None:
             trimesh.points.PointCloud(mirror_xyz.detach().cpu().numpy(),

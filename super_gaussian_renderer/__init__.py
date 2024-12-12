@@ -12,6 +12,7 @@
 import torch
 import math
 from diff_supersurfel_rasterization import GaussianRasterizationSettings, GaussianRasterizer
+from diff_surfel_rasterization import GaussianRasterizer as OriginGaussianRasterizer
 # from scene.gaussian_model import GaussianModel
 from scene.super_gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
@@ -130,13 +131,14 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
             "visibility_filter" : radii > 0,
             "radii": radii,
     }
-    if render_mirror_mask: 
-        mirror_mask, _, _ = rasterizer(
+    if render_mirror_mask:
+        origin_rasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
+        mirror_mask, _, _ = origin_rasterizer(
             means3D = means3D,
             means2D = means2D,
-            shs = mirror_sh,
+            shs = None,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
-            opacities = opacity,
+            opacities = opacity.mean(-1).unsqueeze(-1),
             scales = scales,
             rotations = rotations,
             cov3D_precomp = cov3D_precomp

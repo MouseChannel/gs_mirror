@@ -751,7 +751,7 @@ class GaussianModel:
                                            new_mirror_opacity, new_scaling,
                                            new_rotation)
 
-    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, max_gs=1e9):
+    def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, max_gs=1e9,super_render = False):
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
 
@@ -760,7 +760,8 @@ class GaussianModel:
 
         self.densify_and_split_by_scale(max_gs, 1.0, extent)
 
-        opacities = self.get_opacity
+
+        opacities = self.get_opacity if super_render else self.get_opacity_for_mirror
 
         opacities = torch.max(opacities, dim=1).values.unsqueeze(-1)
         # mirror_opacities = self.get_mirror_opacity

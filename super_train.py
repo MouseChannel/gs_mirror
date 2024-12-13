@@ -25,6 +25,7 @@ from PIL import Image
 from utils.image_utils import psnr
 from argparse import ArgumentParser, Namespace
 from arguments import ModelParams, PipelineParams, OptimizationParams
+from torchvision.utils import save_image
 try:
     from torch.utils.tensorboard import SummaryWriter
     TENSORBOARD_FOUND = True
@@ -81,23 +82,28 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         gt_mirror_mask = viewpoint_cam.gt_alpha_mask.expand_as(gt_image) 
         gt_image_wo_mirror = gt_image * (1 - gt_mirror_mask) + gt_mirror_mask * mirror_color 
 
-        render_pkg = render(viewpoint_cam, gaussians, pipe, background, render_mirror_mask=True) 
+        render_pkg = render(viewpoint_cam, gaussians, pipe, background, render_mirror_mask=True,super_render=iteration>10000)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
         mirror_mask = render_pkg["mirror_mask"] 
         rend_dist = render_pkg["rend_dist"]
         rend_normal  = render_pkg['rend_normal']
-        surf_normal = render_pkg['surf_normal'] 
- 
+        surf_normal = render_pkg['surf_normal']
+
+        if iteration % 100 == 0:
+            save_image(image, 'temp/' + str(iteration) + ".png")
+            save_image(viewpoint_cam.original_image, 'temp/' + str(iteration) + "origin.png")
+
         plane_loss = torch.tensor([0.0]).cuda()
         if iteration == 10000:
-            mirror_transform = gaussians.compute_mirror_plane(min_opacity=0.5, sansac_threshold=opt.sansac_threshold) 
+            mirror_transform = gaussians.compute_mirror_plane(min_opacity=0.5, sansac_threshold=opt.sansac_threshold)
+            gaussians.super_train_iit()
 
         Ll1 = l1_loss(image, gt_image_wo_mirror)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image_wo_mirror))
 
         if iteration > 10000 and viewpoint_cam.gt_alpha_mask.sum() > 0: # stage2: fuse image 
             os.makedirs(f"{scene.model_path}/mirror", exist_ok=True)
-            mirror_render_pkg = render(viewpoint_cam, gaussians, pipe, background, mirror_transform=mirror_transform)
+            mirror_render_pkg = render(viewpoint_cam, gaussians, pipe, background, mirror_transform=mirror_transform,super_render=iteration>10000)
             mirror_image = mirror_render_pkg["render"]  
             image = image * (1 - gt_mirror_mask) + mirror_image * gt_mirror_mask
               

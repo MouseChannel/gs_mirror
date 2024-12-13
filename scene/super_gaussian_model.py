@@ -44,6 +44,9 @@ class GaussianModel:
         self._scaling = torch.empty(0)
         self._rotation = torch.empty(0)
         self._opacity = torch.empty(0)
+
+        self._opacity_for_mirror = torch.empty(0)
+
         self._mirror_opacity = torch.empty(0)
 
         self.max_radii2D = torch.empty(0)
@@ -65,6 +68,7 @@ class GaussianModel:
             self._scaling,
             self._rotation,
             self._opacity,
+            self._opacity_for_mirror,
             self._mirror_opacity,
             self.max_radii2D,
             self.xyz_gradient_accum,
@@ -84,6 +88,7 @@ class GaussianModel:
          self._scaling,
          self._rotation,
          self._opacity,
+         self._opacity_for_mirror,
          self._mirror_opacity,
          self.max_radii2D,
          xyz_gradient_accum,
@@ -113,6 +118,11 @@ class GaussianModel:
         features_rest = self._features_rest
         quadrant = self._quadrant
         return torch.cat((features_dc, features_rest, quadrant), dim=1)
+    @property
+    def get_ori_features(self):
+        features_dc = self._features_dc
+        features_rest = self._features_rest
+        return torch.cat((features_dc, features_rest), dim=1)
 
     @property
     def get_mirror_features(self):
@@ -124,6 +134,10 @@ class GaussianModel:
     @property
     def get_opacity(self):
         return self.opacity_activation(self._opacity)
+
+    @property
+    def get_opacity_for_mirror(self):
+        return self.opacity_activation(self._opacity_for_mirror)
 
     @property
     def get_mirror_opacity(self):
@@ -190,6 +204,8 @@ class GaussianModel:
 
         opacities = self.inverse_opacity_activation(
             0.1 * torch.ones((fused_point_cloud.shape[0], 4), dtype=torch.float, device="cuda"))
+        opacities_for_mirror = self.inverse_opacity_activation(
+            0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         self._features_dc = nn.Parameter(features[:, :, 0:1].transpose(1, 2).contiguous().requires_grad_(True))
@@ -202,6 +218,8 @@ class GaussianModel:
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        self._opacity_for_mirror = nn.Parameter(opacities.requires_grad_(True))
+
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
     def create_from_pcd(self, pcd: BasicPointCloud, spatial_lr_scale: float):
@@ -254,6 +272,9 @@ class GaussianModel:
 
         opacities = self.inverse_opacity_activation(
             0.1 * torch.ones((fused_point_cloud.shape[0], 4), dtype=torch.float, device="cuda"))
+        opacities_for_mirror = self.inverse_opacity_activation(
+            0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
+
         # mir
         mirror_opacities = self.inverse_opacity_activation(
             0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
@@ -269,6 +290,8 @@ class GaussianModel:
         self._rotation = nn.Parameter(rots.requires_grad_(True))
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         # mir
+        self._opacity_for_mirror = nn.Parameter(opacities_for_mirror.requires_grad_(True))
+
         self._mirror_opacity = nn.Parameter(mirror_opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
 
@@ -285,7 +308,9 @@ class GaussianModel:
             {'params': [self._mirror_quadrant], 'lr': training_args.feature_lr / 2, "name": "mirror_quadrant"},  # new
 
             {'params': [self._opacity], 'lr': training_args.opacity_lr / 1.0, "name": "opacity"},
-            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr , "name": "mirror_opacity"},
+            {'params': [self._opacity_for_mirror], 'lr': training_args.opacity_lr / 1.0, "name": "opacity_for_mirror"},
+
+            {'params': [self._mirror_opacity], 'lr': training_args.opacity_lr, "name": "mirror_opacity"},
 
             {'params': [self._scaling], 'lr': training_args.scaling_lr, "name": "scaling"},
             {'params': [self._rotation], 'lr': training_args.rotation_lr, "name": "rotation"}
@@ -318,6 +343,9 @@ class GaussianModel:
             l.append('mirror_quadrant_{}'.format(i))
         for i in range(self._opacity.shape[1]):
             l.append('opacity_{}'.format(i))
+        for i in range(self._opacity_for_mirror.shape[1]):
+            l.append('opacity_for_mirror_{}'.format(i))
+
         for i in range(self._mirror_opacity.shape[1]):
             l.append('mirror_opacity_{}'.format(i))
         for i in range(self._scaling.shape[1]):
@@ -342,6 +370,8 @@ class GaussianModel:
         # indices = torch.arange(0, self._features_dc.size(0), 4)
 
         opacities = self._opacity.detach().cpu().numpy()
+        opacities_for_mirror = self._opacity_for_mirror.detach().cpu().numpy()
+
         mirror_opacities = self._mirror_opacity.detach().cpu().numpy()
 
         # opacities = np.mean(opacities, axis=1, keepdims=True)
@@ -354,7 +384,8 @@ class GaussianModel:
 
         # attributes = np.concatenate((xyz, normals, f_dc, f_rest, quadrants, opacities, scale, rotation), axis=1)
         attributes = np.concatenate(
-            (xyz, normals, f_dc, f_rest, quadrants, mirror_quadrants, opacities, mirror_opacities, scale, rotation),
+            (xyz, normals, f_dc, f_rest, quadrants, mirror_quadrants, opacities, opacities_for_mirror, mirror_opacities,
+             scale, rotation),
             axis=1)
 
         # attributes = np.concatenate((xyz, normals, f_dc, f_rest, opacities, scale, rotation), axis=1)
@@ -367,6 +398,12 @@ class GaussianModel:
             torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))
         optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
         self._opacity = optimizable_tensors["opacity"]
+
+        opacities_new_for_mirror = self.inverse_opacity_activation(
+            torch.min(self.get_opacity_for_mirror, torch.ones_like(self.get_opacity_for_mirror) * 0.01))
+        optimizable_tensors_for_mirror = self.replace_tensor_to_optimizer(opacities_new_for_mirror,
+                                                                          "opacity_for_mirror")
+        self._opacity_for_mirror = optimizable_tensors_for_mirror["opacity_for_mirror"]
 
     def load_ply(self, path):
         plydata = PlyData.read(path)
@@ -419,6 +456,12 @@ class GaussianModel:
         for idx, attr_name in enumerate(opa_names):
             opacities[:, idx] = np.asarray(plydata.elements[0][attr_name])
 
+        opa_names_mirror = [p.name for p in plydata.elements[0].properties if p.name.startswith("opacity_for_mirror_")]
+        opa_names_mirror = sorted(opa_names_mirror, key=lambda x: int(x.split('_')[-1]))
+        opacities_for_mirror = np.zeros((xyz.shape[0], len(opa_names_mirror)))
+        for idx, attr_name in enumerate(opa_names_mirror):
+            opacities[:, idx] = np.asarray(plydata.elements[0][attr_name])
+
         mirror_opa_names = [p.name for p in plydata.elements[0].properties if p.name.startswith("mirror_opacity_")]
         mirror_opa_names = sorted(mirror_opa_names, key=lambda x: int(x.split('_')[-1]))
         mirror_opacities = np.zeros((xyz.shape[0], len(mirror_opa_names)))
@@ -445,6 +488,9 @@ class GaussianModel:
                                                                                        2).contiguous().requires_grad_(
                 True))
         self._opacity = nn.Parameter(torch.tensor(opacities, dtype=torch.float, device="cuda").requires_grad_(True))
+        self._opacity_for_mirror = nn.Parameter(
+            torch.tensor(opacities_for_mirror, dtype=torch.float, device="cuda").requires_grad_(True))
+
         self._mirror_opacity = nn.Parameter(
             torch.tensor(mirror_opacities, dtype=torch.float, device="cuda").requires_grad_(True))
 
@@ -499,6 +545,8 @@ class GaussianModel:
         self._mirror_quadrant = optimizable_tensors["mirror_quadrant"]
 
         self._opacity = optimizable_tensors["opacity"]
+        self._opacity_for_mirror = optimizable_tensors["opacity_for_mirror"]
+
         self._mirror_opacity = optimizable_tensors["mirror_opacity"]
 
         self._scaling = optimizable_tensors["scaling"]
@@ -536,7 +584,7 @@ class GaussianModel:
         return optimizable_tensors
 
     def densification_postfix(self, new_xyz, new_features_dc, new_features_rest, new_quadrant, new_mirror_quadrant,
-                              new_opacities, new_mirror_opacities, new_scaling, new_rotation):
+                              new_opacities, new_opacities_for_mirror, new_mirror_opacities, new_scaling, new_rotation):
         d = {"xyz": new_xyz,
              "f_dc": new_features_dc,
              "f_rest": new_features_rest,
@@ -544,6 +592,7 @@ class GaussianModel:
              "mirror_quadrant": new_mirror_quadrant,
 
              "opacity": new_opacities,
+             "opacity_for_mirror": new_opacities_for_mirror,
              "mirror_opacity": new_mirror_opacities,
 
              "scaling": new_scaling,
@@ -557,6 +606,8 @@ class GaussianModel:
 
         self._mirror_quadrant = optimizable_tensors["mirror_quadrant"]
         self._opacity = optimizable_tensors["opacity"]
+        self._opacity_for_mirror = optimizable_tensors["opacity_for_mirror"]
+
         self._mirror_opacity = optimizable_tensors["mirror_opacity"]
 
         self._scaling = optimizable_tensors["scaling"]
@@ -602,10 +653,12 @@ class GaussianModel:
                 new_mirror_quadrant = self._mirror_quadrant[selected_pts_mask].repeat(N, 1, 1)
 
                 new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
+                new_opacity_for_mirror = self._opacity_for_mirror[selected_pts_mask].repeat(N, 1)
+
                 new_mirror_opacity = self._mirror_opacity[selected_pts_mask].repeat(N, 1)
 
                 self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_quadrant,
-                                           new_mirror_quadrant, new_opacity,
+                                           new_mirror_quadrant, new_opacity, new_opacity_for_mirror,
                                            new_mirror_opacity, new_scaling, new_rotation)
                 prune_filter = torch.cat(
                     (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
@@ -651,10 +704,12 @@ class GaussianModel:
                 new_mirror_quadrant = self._mirror_quadrant[selected_pts_mask].repeat(N, 1, 1)
 
                 new_opacity = self._opacity[selected_pts_mask].repeat(N, 1)
+                new_opacity_for_mirror = self._opacity_for_mirror[selected_pts_mask].repeat(N, 1)
+
                 new_mirror_opacity = self._mirror_opacity[selected_pts_mask].repeat(N, 1)
 
                 self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_quadrant,
-                                           new_mirror_quadrant, new_opacity, new_mirror_opacity, new_scaling,
+                                           new_mirror_quadrant, new_opacity, new_opacity_for_mirror,new_mirror_opacity, new_scaling,
                                            new_rotation)
                 prune_filter = torch.cat(
                     (selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
@@ -685,12 +740,15 @@ class GaussianModel:
                 new_mirror_quadrant = self._mirror_quadrant[selected_pts_mask]
 
                 new_opacities = self._opacity[selected_pts_mask]
+                new_opacities_for_mirror = self._opacity_for_mirror[selected_pts_mask]
+
                 new_scaling = self._scaling[selected_pts_mask]
                 new_rotation = self._rotation[selected_pts_mask]
                 new_mirror_opacity = self._mirror_opacity[selected_pts_mask]
 
                 self.densification_postfix(new_xyz, new_features_dc, new_features_rest, new_quadrant,
-                                           new_mirror_quadrant, new_opacities, new_mirror_opacity, new_scaling,
+                                           new_mirror_quadrant, new_opacities, new_opacities_for_mirror,
+                                           new_mirror_opacity, new_scaling,
                                            new_rotation)
 
     def densify_and_prune(self, max_grad, min_opacity, extent, max_screen_size, max_gs=1e9):
@@ -723,14 +781,19 @@ class GaussianModel:
                                                              keepdim=True)
         self.denom[update_filter] += 1
 
+    def super_train_iit(self):
+        self._opacity = self._opacity_for_mirror.repeat(1, 1, 4)
+
     @torch.no_grad()
     def compute_mirror_plane(self, min_opacity, sansac_threshold=0.01):
         # filter mirror points
 
-        opacity = self.get_opacity.mean(-1).unsqueeze(-1)
+        # opacity = self.get_opacity.mean(-1).unsqueeze(-1)
+        # opacity = self.get_opacity.mean(-1).unsqueeze(-
+
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
-            opacity> min_opacity).squeeze()
-                    # self.get_opacity > min_opacity).squeeze()
+                self.get_opacity_for_mirror > min_opacity).squeeze()
+        # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
 
         # compute plane parameters
@@ -768,9 +831,10 @@ class GaussianModel:
     def get_plane_error(self, save_mirror_path=None, min_opacity=0.5):
         """enforcing the mirror points close to the plane"""
         opacity = self.get_opacity.mean(-1).unsqueeze(-1)
+        opacity = self.get_opacity_for_mirror
         valid_points_mask = (self.get_mirror_opacity > min_opacity).squeeze() & (
                 opacity > min_opacity).squeeze()
-                    # self.get_opacity > min_opacity).squeeze()
+        # self.get_opacity > min_opacity).squeeze()
         mirror_xyz = self._xyz[valid_points_mask]
         import trimesh
 
@@ -792,5 +856,3 @@ class GaussianModel:
         # self._opacity[valid_points_mask][outlier_mask.detach()] *= -100
 
         return dist
-
-

@@ -19,6 +19,7 @@ import numpy as np
 from scene import Scene, GaussianModel
 from utils.general_utils import safe_state
 import uuid
+from torchvision.utils import save_image
 from tqdm import tqdm
 from PIL import Image
 from utils.image_utils import psnr
@@ -88,13 +89,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         surf_normal = render_pkg['surf_normal'] 
  
         plane_loss = torch.tensor([0.0]).cuda()
-        if iteration == 10000: 
+        if iteration == 100:
             mirror_transform = gaussians.compute_mirror_plane(min_opacity=0.5, sansac_threshold=opt.sansac_threshold) 
+
+        if iteration % 500 == 0:
+            save_image(image,'temp/'+str(iteration)+".png")
+            save_image(viewpoint_cam.original_image,'temp/'+str(iteration)+"origin.png")
+            # save_image(viewpoint_cam.,str(iteration)+"origin.png")
 
         Ll1 = l1_loss(image, gt_image_wo_mirror)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image_wo_mirror))
 
-        if iteration > 10000 and viewpoint_cam.gt_alpha_mask.sum() > 0: # stage2: fuse image 
+        if iteration > 100 and viewpoint_cam.gt_alpha_mask.sum() > 0: # stage2: fuse image
             os.makedirs(f"{scene.model_path}/mirror", exist_ok=True)
             mirror_render_pkg = render(viewpoint_cam, gaussians, pipe, background, mirror_transform=mirror_transform)
             mirror_image = mirror_render_pkg["render"]  

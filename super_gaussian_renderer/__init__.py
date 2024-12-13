@@ -19,7 +19,7 @@ from utils.sh_utils import eval_sh
 from utils.point_utils import depth_to_normal
 
 def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, scaling_modifier = 1.0, override_color = None, 
-mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
+mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_render = False):
     """
     Render the scene. 
     
@@ -63,13 +63,15 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
         prefiltered=False,
         debug=False,
         # pipe.debug
+        # super_render =super_render
     )
 
-    rasterizer = GaussianRasterizer(raster_settings=raster_settings)
+    rasterizer = GaussianRasterizer(raster_settings=raster_settings) if super_render \
+        else OriginGaussianRasterizer(raster_settings=raster_settings)
 
     means3D = pc.get_xyz
     means2D = screenspace_points
-    opacity = pc.get_opacity
+    opacity = pc.get_opacity if super_render else pc.get_opacity_for_mirror
     if mirror_transform is not None or remove_mirror: 
         opacity = opacity * (1 - pc.get_mirror_opacity) 
 
@@ -107,7 +109,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
             sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
             colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
         else:
-            shs = pc.get_features
+            shs = pc.get_features if super_render else pc.get_ori_features
     else:
         colors_precomp = override_color
     
@@ -122,7 +124,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
         cov3D_precomp = cov3D_precomp
     )
 
-    mirror_sh = pc.get_mirror_features
+    # mirror_sh = pc.get_mirror_features
     
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
@@ -132,13 +134,15 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False):
             "radii": radii,
     }
     if render_mirror_mask:
-        origin_rasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
-        mirror_mask, _, _ = origin_rasterizer(
+        # origin_rasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
+        # mirror_mask, _, _ = origin_rasterizer(
+
+        mirror_mask, _, _ = rasterizer(
             means3D = means3D,
             means2D = means2D,
             shs = None,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
-            opacities = opacity.mean(-1).unsqueeze(-1),
+            opacities = opacity ,
             scales = scales,
             rotations = rotations,
             cov3D_precomp = cov3D_precomp

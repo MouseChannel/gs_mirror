@@ -66,14 +66,23 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
         # super_render =super_render
     )
 
-    rasterizer = GaussianRasterizer(raster_settings=raster_settings) if super_render \
+    rasterizer = GaussianRasterizer(raster_settings=raster_settings) \
+        if super_render \
         else OriginGaussianRasterizer(raster_settings=raster_settings)
+
+    orirasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
 
     means3D = pc.get_xyz
     means2D = screenspace_points
     opacity = pc.get_opacity if super_render else pc.get_opacity_for_mirror
     if mirror_transform is not None or remove_mirror: 
-        opacity = opacity * (1 - pc.get_mirror_opacity) 
+        opacity = opacity * (1 - pc.get_mirror_opacity)
+
+    opacity_for_mirror=   pc.get_opacity_for_mirror
+    if mirror_transform is not None or remove_mirror:
+        opacity_for_mirror = opacity_for_mirror * (1 - pc.get_mirror_opacity)
+
+
 
     # If precomputed 3d covariance is provided, use it. If not, then it will be computed from
     # scaling / rotation by the rasterizer.
@@ -135,14 +144,14 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
     }
     if render_mirror_mask:
         # origin_rasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
-        # mirror_mask, _, _ = origin_rasterizer(
+        mirror_mask, _, _ = orirasterizer(
 
-        mirror_mask, _, _ = rasterizer(
+        # mirror_mask, _, _ = rasterizer(
             means3D = means3D,
             means2D = means2D,
-            shs = mirror_sh,
+            shs = None,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
-            opacities = opacity ,
+            opacities = opacity_for_mirror ,
             scales = scales,
             rotations = rotations,
             cov3D_precomp = cov3D_precomp

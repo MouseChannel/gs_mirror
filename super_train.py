@@ -89,7 +89,7 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         rend_normal  = render_pkg['rend_normal']
         surf_normal = render_pkg['surf_normal']
 
-        if iteration % 100 == 0:
+        if iteration % 500 == 0:
             save_image(image, 'temp/' + str(iteration) + ".png")
             save_image(viewpoint_cam.original_image, 'temp/' + str(iteration) + "origin.png")
 

@@ -124,7 +124,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
         cov3D_precomp = cov3D_precomp
     )
 
-    # mirror_sh = pc.get_mirror_features
+    mirror_sh = pc.get_mirror_features
     
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
@@ -140,7 +140,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
         mirror_mask, _, _ = rasterizer(
             means3D = means3D,
             means2D = means2D,
-            shs = None,
+            shs = mirror_sh,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
             opacities = opacity ,
             scales = scales,

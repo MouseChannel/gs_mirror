@@ -61,7 +61,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
          campos=campos,
         # campos=viewpoint_camera.camera_center,
         prefiltered=False,
-        debug=super_render,
+        debug=False,
         # pipe.debug
         # super_render =super_render
     )

@@ -144,14 +144,14 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
     }
     if render_mirror_mask:
         # origin_rasterizer = OriginGaussianRasterizer(raster_settings=raster_settings)
-        mirror_mask, _, _ = orirasterizer(
+        # mirror_mask, _, _ = orirasterizer(
 
-        # mirror_mask, _, _ = rasterizer(
+        mirror_mask, _, _ = rasterizer(
             means3D = means3D,
             means2D = means2D,
-            shs = None,
+            shs = shs,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
-            opacities = opacity_for_mirror ,
+            opacities = opacity ,
             scales = scales,
             rotations = rotations,
             cov3D_precomp = cov3D_precomp

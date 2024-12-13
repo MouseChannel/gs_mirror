@@ -393,17 +393,19 @@ class GaussianModel:
         el = PlyElement.describe(elements, 'vertex')
         PlyData([el]).write(path)
 
-    def reset_opacity(self):
-        opacities_new = self.inverse_opacity_activation(
-            torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))
-        optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
-        self._opacity = optimizable_tensors["opacity"]
+    def reset_opacity(self ,   super_render:bool):
+        if super_render:
+            opacities_new = self.inverse_opacity_activation(
+                torch.min(self.get_opacity, torch.ones_like(self.get_opacity) * 0.01))
+            optimizable_tensors = self.replace_tensor_to_optimizer(opacities_new, "opacity")
+            self._opacity = optimizable_tensors["opacity"]
+        else:
 
-        opacities_new_for_mirror = self.inverse_opacity_activation(
-            torch.min(self.get_opacity_for_mirror, torch.ones_like(self.get_opacity_for_mirror) * 0.01))
-        optimizable_tensors_for_mirror = self.replace_tensor_to_optimizer(opacities_new_for_mirror,
-                                                                          "opacity_for_mirror")
-        self._opacity_for_mirror = optimizable_tensors_for_mirror["opacity_for_mirror"]
+            opacities_new_for_mirror = self.inverse_opacity_activation(
+                torch.min(self.get_opacity_for_mirror, torch.ones_like(self.get_opacity_for_mirror) * 0.01))
+            optimizable_tensors_for_mirror = self.replace_tensor_to_optimizer(opacities_new_for_mirror,
+                                                                              "opacity_for_mirror")
+            self._opacity_for_mirror = optimizable_tensors_for_mirror["opacity_for_mirror"]
 
     def load_ply(self, path):
         plydata = PlyData.read(path)

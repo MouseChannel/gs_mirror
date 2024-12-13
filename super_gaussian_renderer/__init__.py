@@ -149,7 +149,7 @@ mirror_transform=None, render_mirror_mask=False, remove_mirror=False,super_rende
         mirror_mask, _, _ = rasterizer(
             means3D = means3D,
             means2D = means2D,
-            shs = shs,
+            shs = shs if super_render else None,
             colors_precomp = pc.get_mirror_opacity.repeat(1, 3),
             opacities = opacity ,
             scales = scales,

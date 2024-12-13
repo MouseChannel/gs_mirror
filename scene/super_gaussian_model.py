@@ -785,7 +785,7 @@ class GaussianModel:
         self.denom[update_filter] += 1
 
     def super_train_iit(self):
-        self._opacity = self._opacity_for_mirror.repeat(1, 1, 4)
+        self._opacity = self._opacity_for_mirror.repeat( 1, 4)
 
     @torch.no_grad()
     def compute_mirror_plane(self, min_opacity, sansac_threshold=0.01):

@@ -12,12 +12,15 @@
 import os
 import random
 import json
+
+import torch
+
 from utils.system_utils import searchForMaxIteration
 from scene.dataset_readers import sceneLoadTypeCallbacks
 from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
-
+from .cameras import  Camera
 class Scene:
 
     gaussians : GaussianModel
@@ -81,7 +84,49 @@ class Scene:
                                                            "point_cloud.ply"))
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+        self.camerapos_optimizers = None
+        # self.camera_training_setup()
 
+
+    def camera_training_setup(self):
+        opt_params = []
+
+        for viewpoint in self.getTrainCameras():
+            opt_params.append(
+                {
+                    "params": [viewpoint.cam_rot_delta],
+                    "lr": 1e-5,
+                    "name": "rot_{}".format(viewpoint.uid),
+                }
+            )
+            opt_params.append(
+                {
+                    "params": [viewpoint.cam_trans_delta],
+                    "lr": 1e-5,
+                    "name": "trans_{}".format(viewpoint.uid),
+                }
+            )
+            opt_params.append(
+                {
+                    "params": [viewpoint.cam_rot_delta_mirror],
+                    "lr": 1e-5,
+                    "name": "rot_mirror_{}".format(viewpoint.uid),
+                }
+            )
+            opt_params.append(
+                {
+                    "params": [viewpoint.cam_trans_delta_mirror],
+                    "lr": 1e-5,
+                    "name": "trans_mirror_{}".format(viewpoint.uid),
+                }
+            )
+
+        self.camerapos_optimizers = torch.optim.Adam(opt_params )
+
+    def generate_mirror_camera_transform(self,mirror_transform):
+        for cam in self.getTrainCameras():
+            cam.generate_mirror_transform(mirror_transform)
+        self.camera_training_setup()
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
         self.gaussians.save_ply(os.path.join(point_cloud_path, "point_cloud.ply"))

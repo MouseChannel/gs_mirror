@@ -71,29 +71,35 @@ class PipelineParams(ParamGroup):
 
 class OptimizationParams(ParamGroup):
     def __init__(self, parser): 
-        self.debug_train = True 
-        self.iterations = 20_000
+        self.debug_train = True
+        self.camera_train = False
         self.position_lr_init = 0.00016
         self.position_lr_final = 0.0000016
         self.position_lr_delay_mult = 0.01
-        self.position_lr_max_steps = 30_000
         self.feature_lr = 0.0025
         self.opacity_lr = 0.05
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
         self.percent_dense = 0.01
-        self.lambda_dssim = 0.2 
+        self.lambda_dssim = 0.2
         self.lambda_dist = 100.0
         self.lambda_normal = 0.05
-        self.lambda_mirrimg = 2.0 
-        self.lambda_mirrmsk = 1.0 
+        self.lambda_mirrimg = 2.0
+        self.lambda_mirrmsk = 1.0
         self.opacity_cull = 0.05
-        self.sansac_threshold = 0.5 
+        self.sansac_threshold = 0.5
         self.densification_interval = 500
         self.opacity_reset_interval = 3000
         self.densify_from_iter = 5000
         self.densify_until_iter = 10_000
         self.densify_grad_threshold = 0.0002
+        self.first_stage_iter = 20000
+        self.second_stage_iter = 22000
+        self.third_stage_iter = 50000
+        self.position_lr_max_steps = self.third_stage_iter
+        self.iterations = self.third_stage_iter
+
+
         super().__init__(parser, "Optimization Parameters")
 
 def get_combined_args(parser : ArgumentParser):

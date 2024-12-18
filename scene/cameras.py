@@ -28,6 +28,18 @@ class Camera(nn.Module):
         self.FoVx = FoVx
         self.FoVy = FoVy
         self.image_name = image_name
+        self.cam_rot_delta = nn.Parameter(
+            torch.zeros(3, requires_grad=True, device='cuda')
+        )
+        self.cam_trans_delta = nn.Parameter(
+            torch.zeros(3, requires_grad=True, device='cuda')
+        )
+        self.cam_rot_delta_mirror = nn.Parameter(
+            torch.zeros(3, requires_grad=True, device='cuda')
+        )
+        self.cam_trans_delta_mirror = nn.Parameter(
+            torch.zeros(3, requires_grad=True, device='cuda')
+        )
 
         try:
             self.data_device = torch.device(data_device)
@@ -58,6 +70,16 @@ class Camera(nn.Module):
         self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0,1).cuda()
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
+        self.world_view_transform_mirror = None
+        self.full_proj_transform_mirror = None
+        self.camera_center_mirror = None
+    def generate_mirror_transform(self,mirror_transform):
+        w2c = self.world_view_transform.transpose(0, 1)  # Q_o
+        # self.world_view_transform_mirror = torch.matmul(w2c, mirror_transform.inverse()).transpose(0, 1)
+        self.world_view_transform_mirror = torch.matmul(mirror_transform.inverse().transpose(0,1),self.world_view_transform)
+        self.full_proj_transform_mirror = (self.world_view_transform_mirror.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
+        self.camera_center_mirror = self.world_view_transform_mirror.inverse()[3, :3]
+
 
 class MiniCam:
     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):
